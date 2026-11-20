@@ -46,18 +46,26 @@ function nearest(points: ChartPoint[], t: number): ChartPoint | null {
   return best;
 }
 
+export interface ChartThreshold {
+  value: number;
+  label?: string;
+}
+
 export function LineChart({
   series,
   unit,
   label,
   digits = 1,
   formatTime = formatClock,
+  threshold,
 }: {
   series: ChartSeries[];
   unit: string;
   label: string;
   digits?: number;
   formatTime?: (ms: number) => string;
+  /** Optional horizontal reference line, e.g. the turbine spin threshold. */
+  threshold?: ChartThreshold;
 }) {
   const gradientId = `area-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -224,6 +232,28 @@ export function LineChart({
                 className={`fill-surface ${TONES[firstLine.tone].stroke}`}
                 strokeWidth={2.5}
               />
+            )}
+
+            {threshold && threshold.value > 0 && threshold.value < plot.vMax && (
+              <g>
+                <line
+                  x1={PAD.l}
+                  x2={width - PAD.r}
+                  y1={plot.y(threshold.value)}
+                  y2={plot.y(threshold.value)}
+                  className="stroke-warning"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={width - PAD.r}
+                  y={plot.y(threshold.value) - 5}
+                  textAnchor="end"
+                  className="fill-warning-text text-[10px] font-medium"
+                >
+                  {threshold.label ?? `${formatNumber(threshold.value, 1)} ${unit}`}
+                </text>
+              </g>
             )}
 
             {anchor && (

@@ -7,6 +7,7 @@ import { LineChart, type ChartSeries } from "@/components/ui/LineChart";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { BUTTON, ICON_BOX } from "@/components/ui/styles";
 import { GENERATOR_ONLINE_WINDOW_MS } from "@/lib/deviceState";
+import { SPIN_THRESHOLD_V } from "@/lib/energy";
 import { formatAgo, formatClock, formatClockSeconds } from "@/lib/format";
 import { usePolling } from "@/lib/hooks";
 import type { DeviceLatestResponse, DeviceReading } from "@/lib/types";
@@ -22,6 +23,14 @@ function fixed(value: number, digits: number): string {
 
 function agoText(ageMs: number): string {
   return ageMs < 60_000 ? `${Math.max(0, Math.floor(ageMs / 1000))} detik lalu` : formatAgo(ageMs);
+}
+
+/** Qualitative WiFi signal label so the three tiles stay visually balanced. */
+function wifiQuality(rssi: number | null): string | undefined {
+  if (rssi === null) return undefined;
+  if (rssi >= -60) return "Kuat";
+  if (rssi >= -75) return "Sedang";
+  return "Lemah";
 }
 
 function summarize(rows: DeviceReading[]) {
@@ -79,15 +88,20 @@ export default function UjiGeneratorPage() {
   const ageMs =
     Date.parse(latest.data.server_time) - Date.parse(reading.ts) + Math.max(0, now - (latest.updatedAt ?? now));
   const online = ageMs < GENERATOR_ONLINE_WINDOW_MS;
+  // Inferred from voltage: a spinning turbine generates voltage, a stopped one reads ~0.
+  const spinning = reading.gen_voltage > SPIN_THRESHOLD_V;
 
   return (
     <div className="grid gap-4 md:gap-5 lg:grid-cols-3">
       <Card className="flex flex-col gap-4 lg:col-span-2 lg:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <span className={`${ICON_BOX} bg-primary-soft text-primary`}>
             <Zap size={18} strokeWidth={1.5} />
           </span>
-          <h2 className="flex-1 text-sm font-semibold text-ink md:text-[15px]">Tegangan generator</h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-ink md:text-[15px]">Tegangan generator</h2>
+            <p className="text-[11px] text-ink-secondary md:text-xs">Keluaran turbin ke modul cas</p>
+          </div>
           {online ? (
             <StatusPill tone="success">
               <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
@@ -103,16 +117,41 @@ export default function UjiGeneratorPage() {
           </span>
           <span className="text-2xl font-semibold text-ink-secondary">V</span>
         </p>
-        <p className="text-xs text-ink-secondary md:text-[13px]">
-          Diperbarui {agoText(ageMs)} · {reading.device_id}
-          {latest.error ? ` · ${latest.error}` : ""}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {online && (
+            <StatusPill tone={spinning ? "success" : "neutral"}>
+              {spinning ? "Turbin berputar" : "Turbin diam"}
+            </StatusPill>
+          )}
+          <p className="text-xs text-ink-secondary md:text-[13px]">
+            Diperbarui {agoText(ageMs)} · {reading.device_id}
+            {latest.error ? ` · ${latest.error}` : ""}
+          </p>
+        </div>
       </Card>
 
       <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
-        <Tile icon={Activity} label="Arus" value={fixed(reading.gen_current * 1000, 1)} unit="mA" />
-        <Tile icon={Gauge} label="Daya" value={fixed(reading.gen_power * 1000, 1)} unit="mW" />
-        <Tile icon={Wifi} label="Sinyal WiFi" value={reading.rssi === null ? "–" : String(reading.rssi).replace("-", "−")} unit="dBm" />
+        <Tile
+          icon={Activity}
+          label="Arus"
+          value={fixed(reading.gen_current, 4)}
+          unit="A"
+          sub={`${fixed(reading.gen_current * 1000, 1)} mA`}
+        />
+        <Tile
+          icon={Gauge}
+          label="Daya"
+          value={fixed(reading.gen_power, 4)}
+          unit="W"
+          sub={`${fixed(reading.gen_power * 1000, 1)} mW`}
+        />
+        <Tile
+          icon={Wifi}
+          label="Sinyal WiFi"
+          value={reading.rssi === null ? "–" : String(reading.rssi).replace("-", "−")}
+          unit="dBm"
+          sub={wifiQuality(reading.rssi)}
+        />
       </div>
 
       <Card className="flex flex-col gap-3 lg:col-span-2">
@@ -140,6 +179,7 @@ export default function UjiGeneratorPage() {
           digits={2}
           label={`Grafik tegangan generator ${range} menit terakhir`}
           formatTime={range === 60 ? formatClock : formatClockSeconds}
+          threshold={{ value: SPIN_THRESHOLD_V, label: "Batas turbin berputar" }}
         />
       </Card>
 
@@ -150,7 +190,11 @@ export default function UjiGeneratorPage() {
             <SummaryItem label="Tegangan min" value={`${fixed(summary.min, 2)} V`} />
             <SummaryItem label="Rata-rata" value={`${fixed(summary.avg, 2)} V`} />
             <SummaryItem label="Tegangan maks" value={`${fixed(summary.max, 2)} V`} />
-            <SummaryItem label="Daya maks" value={`${fixed(summary.powerMax * 1000, 1)} mW`} />
+            <SummaryItem
+              label="Daya maks"
+              value={`${fixed(summary.powerMax, 4)} W`}
+              sub={`${fixed(summary.powerMax * 1000, 1)} mW`}
+            />
             <SummaryItem label="Jumlah data" value={String(summary.count)} />
           </dl>
         ) : (
@@ -165,7 +209,19 @@ export default function UjiGeneratorPage() {
   );
 }
 
-function Tile({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: string; value: string; unit: string }) {
+function Tile({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  sub,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  unit: string;
+  sub?: string;
+}) {
   return (
     <Card className="flex min-w-0 flex-col gap-2 !p-3 md:!p-4">
       <span className={`${ICON_BOX} bg-primary-soft text-primary`}>
@@ -177,16 +233,18 @@ function Tile({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: str
           <span className="text-lg font-bold tabular-nums text-ink md:text-xl">{value}</span>
           <span className="text-[11px] font-medium text-ink-secondary">{unit}</span>
         </p>
+        {sub && <p className="truncate text-[11px] tabular-nums text-ink-muted">{sub}</p>}
       </div>
     </Card>
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+function SummaryItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0 rounded-md bg-surface-muted px-3 py-2.5">
       <dt className="truncate text-[11px] text-ink-secondary">{label}</dt>
       <dd className="truncate text-[15px] font-bold tabular-nums text-ink">{value}</dd>
+      {sub && <dd className="truncate text-[11px] tabular-nums text-ink-muted">{sub}</dd>}
     </div>
   );
 }

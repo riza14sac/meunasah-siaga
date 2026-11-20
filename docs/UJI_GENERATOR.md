@@ -87,7 +87,7 @@ isi `DEVICE_API_KEY` kalian. Jalankan sambil membuka halaman Uji Generator; angk
 Kunci benar, balasan `200 {"ok":true,"id":1}`:
 
 ```powershell
-curl.exe -i -X POST http://localhost:3000/api/ingest -H "Content-Type: application/json" -H "x-api-key: isi-kunci-rahasia-kalian" -d '{\"device_id\":\"ms-01\",\"gen_voltage\":5.123,\"gen_current\":0.0123,\"rssi\":-61}'
+curl.exe -i -X POST https://meunasah-siaga.vercel.app/ -H "Content-Type: application/json" -H "x-api-key: czd3k5w064febhn8g7yqtasmv9u21iox" -d '{\"device_id\":\"ms-01\",\"gen_voltage\":5.123,\"gen_current\":0.0123,\"rssi\":-61}'
 ```
 
 Tanpa kunci, balasan `401 {"error":"Kunci API salah"}`:
@@ -115,11 +115,14 @@ Data juga bisa dicek langsung di browser:
 
 ## 6. Halaman Uji Generator
 
-- Angka besar: tegangan terakhir (2 desimal). Status **Terhubung** (hijau) selama data terus
-  masuk; berubah menjadi **Terputus · terakhir terlihat HH:MM:SS** setelah 10 detik tanpa data.
-- Tiga kartu kecil: arus (mA), daya (mW, dihitung server = tegangan × arus), sinyal WiFi (dBm).
-- Grafik tegangan dengan pilihan 1 / 10 / 60 menit, ringkasan min, rata-rata, maks, daya maks,
-  dan jumlah data untuk rentang yang dipilih.
+- Angka besar: tegangan terakhir (2 desimal) = keluaran turbin ke modul cas, dengan badge
+  **Turbin berputar / Turbin diam** (perkiraan dari tegangan, ambang 2 V). Status **Terhubung**
+  (hijau) selama data terus masuk; berubah menjadi **Terputus · terakhir terlihat HH:MM:SS**
+  setelah 10 detik tanpa data.
+- Tiga kartu kecil: arus (A, dengan mA di bawahnya), daya (W, dihitung server = tegangan × arus,
+  dengan mW di bawahnya), sinyal WiFi (dBm + kualitas Kuat/Sedang/Lemah).
+- Grafik tegangan dengan garis ambang 2 V dan pilihan 1 / 10 / 60 menit, ringkasan min, rata-rata,
+  maks, daya maks (W + mW), dan jumlah data untuk rentang yang dipilih.
 - **Unduh CSV**: file `uji-generator-YYYYMMDD-HHmm.csv` untuk rentang yang dipilih. Pemisah titik
   koma dan koma desimal, jadi langsung terbagi rapi per kolom di Excel berbahasa Indonesia.
 - Halaman berhenti mengambil data saat tab tidak terlihat, dan lanjut lagi saat dibuka.
