@@ -144,9 +144,16 @@ export interface NextPrayer {
   lamps: boolean;
 }
 
+/**
+ * Which data actually fed the live status: "full" = payload lengkap (baterai/PLN),
+ * "generator-only" = fallback dari `device_readings`, "none" = belum ada data.
+ */
+export type StatusDataSource = "full" | "generator-only" | "none";
+
 export interface StatusResponse {
   mode: Mode;
   server_time: string;
+  data_source: StatusDataSource;
   device: DeviceStatus | null;
   reading: Reading | null;
   charge_power_w: number | null;

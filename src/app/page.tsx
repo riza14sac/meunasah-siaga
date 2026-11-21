@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { BatteryCharging, Lightbulb, Moon, Power, PowerOff, Sun, TriangleAlert, Zap } from "lucide-react";
+import { BatteryCharging, Info, Lightbulb, Moon, Power, PowerOff, Sun, TriangleAlert, Zap } from "lucide-react";
 import { useStatusContext } from "@/components/StatusProvider";
 import { LatestTestCard } from "@/components/tests/LatestTestCard";
 import { BatteryGauge } from "@/components/ui/BatteryGauge";
@@ -33,7 +33,10 @@ export default function BerandaPage() {
 
   const reading = data?.reading ?? null;
   const reserve = data?.settings.reserve_min ?? 20;
-  const lampPct = reading ? Math.max(reading.lamp1_pct, reading.lamp2_pct) : 0;
+  // "full" = payload baterai/PLN lengkap; "generator-only" = fallback dari device_readings.
+  const batteryKnown = data?.data_source === "full";
+  const generatorOnly = data?.data_source === "generator-only";
+  const lampPct = batteryKnown && reading ? Math.max(reading.lamp1_pct, reading.lamp2_pct) : 0;
   const voltageTrend = points.slice(-24).map((p) => p.gen_voltage);
   const source = data?.mode === "simulasi" ? "simulasi" : "ESP32";
 
@@ -49,25 +52,53 @@ export default function BerandaPage() {
         </div>
       )}
 
+      {generatorOnly && (
+        <div className="flex items-start gap-3 rounded-lg bg-info-soft px-4 py-3 text-info-text">
+          <Info size={20} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+          <p className="text-sm leading-snug">
+            <span className="font-bold">Data baterai &amp; PLN belum dikirim.</span> Beranda menampilkan data generator
+            dari payload ringkas. Agar baterai, PLN, dan energi ikut tampil, ESP32 perlu memakai firmware lengkap yang
+            mengirim <code className="font-mono">bat_voltage</code>, <code className="font-mono">bat_percent</code>, dan{" "}
+            <code className="font-mono">pln_on</code>.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
         <Card className="flex flex-col gap-5 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-ink md:text-[15px]">Status sistem saat ini</h2>
               <p className="mt-0.5 text-xs text-ink-secondary">
-                {reading ? `Data ${source} pukul ${formatClock(reading.ts)} WIB` : `Belum ada data ${source}`}
+                {reading
+                  ? `Data ${source} pukul ${formatClock(reading.ts)} WIB${generatorOnly ? " · payload generator" : ""}`
+                  : `Belum ada data ${source}`}
               </p>
             </div>
-            {reading && (
-              <StatusPill tone={reading.pln_on ? "success" : "danger"}>
-                {reading.pln_on ? <Power size={14} strokeWidth={1.5} /> : <PowerOff size={14} strokeWidth={1.5} />}
-                {reading.pln_on ? "Listrik PLN hidup" : "Listrik PLN padam"}
-              </StatusPill>
-            )}
+            {reading &&
+              (batteryKnown ? (
+                <StatusPill tone={reading.pln_on ? "success" : "danger"}>
+                  {reading.pln_on ? <Power size={14} strokeWidth={1.5} /> : <PowerOff size={14} strokeWidth={1.5} />}
+                  {reading.pln_on ? "Listrik PLN hidup" : "Listrik PLN padam"}
+                </StatusPill>
+              ) : (
+                <StatusPill tone="neutral">
+                  <PowerOff size={14} strokeWidth={1.5} />
+                  Status PLN belum tersedia
+                </StatusPill>
+              ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-6 md:gap-8">
-            <BatteryGauge percent={reading?.bat_percent ?? 0} reservePercent={reserve} />
+            {batteryKnown ? (
+              <BatteryGauge percent={reading?.bat_percent ?? 0} reservePercent={reserve} />
+            ) : (
+              <div className="flex h-[168px] w-[168px] shrink-0 flex-col items-center justify-center rounded-full border-[14px] border-primary-soft">
+                <span className="text-3xl font-bold text-ink-muted">—</span>
+                <span className="mt-0.5 text-xs text-ink-secondary">Baterai</span>
+                <span className="text-[10px] text-ink-muted">belum ada data</span>
+              </div>
+            )}
 
             <div className="flex min-w-[12rem] flex-1 flex-col gap-4">
               <div>
@@ -75,7 +106,7 @@ export default function BerandaPage() {
                   <span className="flex items-center gap-1.5">
                     <Lightbulb size={16} strokeWidth={1.5} /> Kecerahan lampu
                   </span>
-                  <span className="font-semibold tabular-nums text-ink">{lampPct}%</span>
+                  <span className="font-semibold tabular-nums text-ink">{batteryKnown ? `${lampPct}%` : "—"}</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
                   <div className="h-full rounded-full bg-warning transition-[width] duration-500" style={{ width: `${lampPct}%` }} />
@@ -86,13 +117,17 @@ export default function BerandaPage() {
                 <span className="flex items-center gap-1.5">
                   <Zap size={16} strokeWidth={1.5} /> Tegangan generator
                 </span>
-                <span className="font-semibold tabular-nums text-ink">{formatNumber(reading?.gen_voltage ?? 0, 2)} V</span>
+                <span className="font-semibold tabular-nums text-ink">
+                  {reading ? `${formatNumber(reading.gen_voltage, 2)} V` : "—"}
+                </span>
               </div>
               <div className="flex items-center justify-between text-xs text-ink-secondary">
                 <span className="flex items-center gap-1.5">
                   <BatteryCharging size={16} strokeWidth={1.5} /> Daya pengisian
                 </span>
-                <span className="font-semibold tabular-nums text-ink">{formatNumber(data?.charge_power_w ?? 0, 2)} W</span>
+                <span className="font-semibold tabular-nums text-ink">
+                  {batteryKnown ? `${formatNumber(data?.charge_power_w ?? 0, 2)} W` : "—"}
+                </span>
               </div>
 
               <p className="text-xs leading-snug text-ink-secondary">
@@ -129,23 +164,25 @@ export default function BerandaPage() {
         <StatCard
           icon={Zap}
           label="Tegangan generator"
-          value={formatNumber(reading?.gen_voltage ?? 0, 2)}
-          unit="V"
+          value={reading ? formatNumber(reading.gen_voltage, 2) : "—"}
+          unit={reading ? "V" : undefined}
           tone="accent"
           trend={voltageTrend}
         />
         <StatCard
           icon={BatteryCharging}
           label="Daya pengisian"
-          value={formatNumber(data?.charge_power_w ?? 0, 2)}
-          unit="W"
+          value={batteryKnown ? formatNumber(data?.charge_power_w ?? 0, 2) : "—"}
+          unit={batteryKnown ? "W" : undefined}
+          sub={batteryKnown ? undefined : "Menunggu data baterai"}
           tone="good"
         />
         <StatCard
           icon={Sun}
           label="Energi masuk hari ini"
-          value={formatNumber(data?.today.energy_in_wh ?? 0, 2)}
-          unit="Wh"
+          value={batteryKnown ? formatNumber(data?.today.energy_in_wh ?? 0, 2) : "—"}
+          unit={batteryKnown ? "Wh" : undefined}
+          sub={batteryKnown ? undefined : "Menunggu data baterai"}
           tone="good"
         />
         <StatCard
@@ -160,7 +197,11 @@ export default function BerandaPage() {
       <Card>
         <div className="mb-4">
           <h2 className="text-sm font-semibold text-ink md:text-[15px]">Tren baterai 24 jam</h2>
-          <p className="text-xs text-ink-secondary">Ditandai lima waktu shalat, bukan jam biasa</p>
+          <p className="text-xs text-ink-secondary">
+            {batteryKnown
+              ? "Ditandai lima waktu shalat, bukan jam biasa"
+              : "Grafik baterai menunggu data lengkap dari ESP32 (payload baterai belum dikirim)"}
+          </p>
         </div>
         <TrendChart points={points} prayerMarks={prayerMarks} />
       </Card>

@@ -1,8 +1,10 @@
 import type { Client } from "@libsql/client";
-import type { StatusResponse } from "./types";
+import type { DeviceStatus, Mode, Reading, StatusDataSource, StatusResponse } from "./types";
 import { num } from "./db";
 import { BLACKOUT_COLS, toBlackout } from "./blackouts";
 import { DEVICE_STATUS_SQL, toDeviceStatus } from "./device";
+import { DEVICE_OFFLINE_AFTER_MS } from "./deviceState";
+import { latestDeviceReading } from "./deviceReadings";
 import { chargePowerW, turbinePowerW } from "./energy";
 import { lampsOn, nextPrayer } from "./prayer";
 import { READING_COLS, toReading } from "./readings";
@@ -11,6 +13,42 @@ import { SETTINGS_SQL, toSettings } from "./settings";
 import { wibDayStart } from "./time";
 
 const CURRENT_MODE = "(SELECT mode FROM system_settings WHERE id = 1)";
+
+/**
+ * A generator-only payload never reaches `readings`. Build a minimal Reading from
+ * `device_readings` so Beranda can still show the turbine voltage instead of nothing.
+ * Battery/PLN fields are placeholders; `data_source` tells the UI they are unknown.
+ */
+function readingFromDevice(d: { id: number; ts: string; device_id: string; gen_voltage: number; gen_current: number; rssi: number | null }, mode: Mode): Reading {
+  return {
+    id: d.id,
+    ts: d.ts,
+    mode,
+    device_id: d.device_id,
+    gen_voltage: d.gen_voltage,
+    gen_current: d.gen_current,
+    bat_voltage: 0,
+    bat_current: 0,
+    bat_percent: 0,
+    pln_on: false,
+    lamp1_pct: 0,
+    lamp2_pct: 0,
+    rssi: d.rssi,
+    fw: null,
+  };
+}
+
+/** When `device_status` is empty, derive the connection line from the fallback reading. */
+function deviceFromReading(reading: Reading | null, nowMs: number): DeviceStatus | null {
+  if (!reading?.device_id) return null;
+  return {
+    device_id: reading.device_id,
+    last_seen: reading.ts,
+    rssi: reading.rssi,
+    fw: reading.fw,
+    online: nowMs - Date.parse(reading.ts) <= DEVICE_OFFLINE_AFTER_MS,
+  };
+}
 
 /** Everything the live screens need, in a single round trip to the database. */
 export async function getStatus(db: Client, nowMs: number): Promise<StatusResponse> {
@@ -38,16 +76,27 @@ export async function getStatus(db: Client, nowMs: number): Promise<StatusRespon
   );
 
   const settings = toSettings(settingsRes.rows[0]);
-  const reading = readingRes.rows[0] ? toReading(readingRes.rows[0]) : null;
+  let reading = readingRes.rows[0] ? toReading(readingRes.rows[0]) : null;
+  let dataSource: StatusDataSource = reading ? "full" : "none";
+  if (!reading) {
+    // Generator-only uploads land in `device_readings`; reuse them so Beranda is not blank.
+    const device = await latestDeviceReading(db);
+    if (device) {
+      reading = readingFromDevice(device, settings.mode);
+      dataSource = "generator-only";
+    }
+  }
   const schedule = toActiveSchedule(profileRes, slotsRes);
   const next = nextPrayer(nowMs, schedule.slots);
 
   return {
     mode: settings.mode,
     server_time: new Date(nowMs).toISOString(),
-    device: toDeviceStatus(deviceRes.rows[0], nowMs),
+    data_source: dataSource,
+    device: toDeviceStatus(deviceRes.rows[0], nowMs) ?? deviceFromReading(reading, nowMs),
     reading,
-    charge_power_w: reading ? chargePowerW(reading) : null,
+    // Battery-derived values are only meaningful for a full payload.
+    charge_power_w: dataSource === "full" && reading ? chargePowerW(reading) : null,
     turbine_power_w: reading ? turbinePowerW(reading) : null,
     active_blackout: blackoutRes.rows[0] ? toBlackout(blackoutRes.rows[0]) : null,
     next_prayer: next
