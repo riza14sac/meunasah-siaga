@@ -9,7 +9,7 @@ import { formatAgo, formatClock } from "@/lib/format";
 import type { StatusResponse } from "@/lib/types";
 
 const TITLES: [prefix: string, title: string][] = [
-  ["/uji-generator", "Uji Generator"],
+  ["/uji-generator", "Monitor Baterai"],
   ["/riwayat/pengujian", "Pengujian Alat"],
   ["/riwayat", "Riwayat"],
   ["/jadwal", "Jadwal Shalat"],
@@ -55,7 +55,7 @@ export function TopBar() {
       <div className="mx-auto flex w-full max-w-[440px] items-center justify-between gap-3 md:max-w-6xl">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-bold text-ink md:text-2xl">{titleFor(pathname)}</h1>
-          {/* Uji Generator shows its own connection from device_readings, which this line does not see. */}
+          {/* Monitor Baterai shows its own connection from device_readings, which this line does not see. */}
           {!pathname.startsWith("/uji-generator") && (
             <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-secondary md:text-xs">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${conn.dot}`} aria-hidden="true" />

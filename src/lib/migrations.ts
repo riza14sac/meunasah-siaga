@@ -142,7 +142,7 @@ export const migrations: Migration[] = [
   },
   {
     version: 2,
-    // Raw generator readings for the Uji Generator page. Kept apart from
+    // Raw compact readings for the Monitor Baterai page. Kept apart from
     // `readings` so a sketch that only has the INA219 can send without battery data.
     statements: () => [
       `CREATE TABLE IF NOT EXISTS device_readings (

@@ -33,9 +33,9 @@ export default function BerandaPage() {
 
   const reading = data?.reading ?? null;
   const reserve = data?.settings.reserve_min ?? 20;
-  // "full" = payload baterai/PLN lengkap; "generator-only" = fallback dari device_readings.
+  // "full" = payload baterai/PLN lengkap; "generator-only" = payload ringkas (INA219 di baterai).
   const batteryKnown = data?.data_source === "full";
-  const generatorOnly = data?.data_source === "generator-only";
+  const compact = data?.data_source === "generator-only";
   const lampPct = batteryKnown && reading ? Math.max(reading.lamp1_pct, reading.lamp2_pct) : 0;
   const voltageTrend = points.slice(-24).map((p) => p.gen_voltage);
   const source = data?.mode === "simulasi" ? "simulasi" : "ESP32";
@@ -52,14 +52,12 @@ export default function BerandaPage() {
         </div>
       )}
 
-      {generatorOnly && (
+      {compact && (
         <div className="flex items-start gap-3 rounded-lg bg-info-soft px-4 py-3 text-info-text">
           <Info size={20} strokeWidth={1.5} className="mt-0.5 shrink-0" />
           <p className="text-sm leading-snug">
-            <span className="font-bold">Data baterai &amp; PLN belum dikirim.</span> Beranda menampilkan data generator
-            dari payload ringkas. Agar baterai, PLN, dan energi ikut tampil, ESP32 perlu memakai firmware lengkap yang
-            mengirim <code className="font-mono">bat_voltage</code>, <code className="font-mono">bat_percent</code>, dan{" "}
-            <code className="font-mono">pln_on</code>.
+            <span className="font-bold">Mode ringkas: data baterai.</span> Beranda menampilkan tegangan baterai dari
+            INA219. Persentase baterai, status PLN, dan energi belum dikirim; gunakan firmware lengkap untuk data itu.
           </p>
         </div>
       )}
@@ -71,7 +69,7 @@ export default function BerandaPage() {
               <h2 className="text-sm font-semibold text-ink md:text-[15px]">Status sistem saat ini</h2>
               <p className="mt-0.5 text-xs text-ink-secondary">
                 {reading
-                  ? `Data ${source} pukul ${formatClock(reading.ts)} WIB${generatorOnly ? " · payload generator" : ""}`
+                  ? `Data ${source} pukul ${formatClock(reading.ts)} WIB${compact ? " · mode ringkas" : ""}`
                   : `Belum ada data ${source}`}
               </p>
             </div>
@@ -94,9 +92,11 @@ export default function BerandaPage() {
               <BatteryGauge percent={reading?.bat_percent ?? 0} reservePercent={reserve} />
             ) : (
               <div className="flex h-[168px] w-[168px] shrink-0 flex-col items-center justify-center rounded-full border-[14px] border-primary-soft">
-                <span className="text-3xl font-bold text-ink-muted">—</span>
-                <span className="mt-0.5 text-xs text-ink-secondary">Baterai</span>
-                <span className="text-[10px] text-ink-muted">belum ada data</span>
+                <span className="text-2xl font-bold tabular-nums text-ink">
+                  {reading ? formatNumber(reading.gen_voltage, 2) : "—"}
+                </span>
+                <span className="mt-0.5 text-[11px] font-medium text-ink-secondary">V · baterai</span>
+                <span className="text-[10px] text-ink-muted">persentase belum ada</span>
               </div>
             )}
 
@@ -115,7 +115,7 @@ export default function BerandaPage() {
 
               <div className="flex items-center justify-between text-xs text-ink-secondary">
                 <span className="flex items-center gap-1.5">
-                  <Zap size={16} strokeWidth={1.5} /> Tegangan generator
+                  <Zap size={16} strokeWidth={1.5} /> {compact ? "Tegangan baterai" : "Tegangan generator"}
                 </span>
                 <span className="font-semibold tabular-nums text-ink">
                   {reading ? `${formatNumber(reading.gen_voltage, 2)} V` : "—"}
@@ -163,7 +163,7 @@ export default function BerandaPage() {
       <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
         <StatCard
           icon={Zap}
-          label="Tegangan generator"
+          label={compact ? "Tegangan baterai" : "Tegangan generator"}
           value={reading ? formatNumber(reading.gen_voltage, 2) : "—"}
           unit={reading ? "V" : undefined}
           tone="accent"
@@ -174,7 +174,7 @@ export default function BerandaPage() {
           label="Daya pengisian"
           value={batteryKnown ? formatNumber(data?.charge_power_w ?? 0, 2) : "—"}
           unit={batteryKnown ? "W" : undefined}
-          sub={batteryKnown ? undefined : "Menunggu data baterai"}
+          sub={batteryKnown ? undefined : "Belum ada data pengisian"}
           tone="good"
         />
         <StatCard
@@ -182,7 +182,7 @@ export default function BerandaPage() {
           label="Energi masuk hari ini"
           value={batteryKnown ? formatNumber(data?.today.energy_in_wh ?? 0, 2) : "—"}
           unit={batteryKnown ? "Wh" : undefined}
-          sub={batteryKnown ? undefined : "Menunggu data baterai"}
+          sub={batteryKnown ? undefined : "Butuh data lengkap"}
           tone="good"
         />
         <StatCard
@@ -200,7 +200,7 @@ export default function BerandaPage() {
           <p className="text-xs text-ink-secondary">
             {batteryKnown
               ? "Ditandai lima waktu shalat, bukan jam biasa"
-              : "Grafik baterai menunggu data lengkap dari ESP32 (payload baterai belum dikirim)"}
+              : "Grafik baterai butuh data persentase baterai (firmware lengkap)"}
           </p>
         </div>
         <TrendChart points={points} prayerMarks={prayerMarks} />

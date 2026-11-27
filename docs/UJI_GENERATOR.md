@@ -1,7 +1,11 @@
-# Uji Generator: tegangan ESP32 tampil langsung di web
+# Monitor Baterai: tegangan & arus baterai tampil langsung di web
 
 Panduan ini untuk menjalankan dashboard di laptop Windows, menerima data dari ESP32 + INA219,
-dan membuka halaman **Uji Generator** dari HP atau dari internet.
+dan membuka halaman **Monitor Baterai** dari HP atau dari internet.
+
+> Pada rakitan ini INA219 dipasang di jalur **baterai**, sehingga `gen_voltage` dan `gen_current`
+> berisi tegangan/arus baterai. Halaman menampilkannya sebagai Monitor Baterai; nama field JSON
+> tetap `gen_*` agar firmware dan API tidak perlu diubah.
 
 ESP32 mengirim data tiap 2 detik ke `POST /api/ingest`:
 
@@ -81,7 +85,7 @@ bisa, hampir pasti firewall atau profil jaringan masih Public.
 ## 5. Uji tanpa ESP32 (PowerShell)
 
 Pakai `curl.exe`, bukan `curl` (di PowerShell `curl` adalah alias perintah lain). Ganti kunci dengan
-isi `DEVICE_API_KEY` kalian. Jalankan sambil membuka halaman Uji Generator; angkanya muncul dalam
+isi `DEVICE_API_KEY` kalian. Jalankan sambil membuka halaman Monitor Baterai; angkanya muncul dalam
 2 detik.
 
 Kunci benar, balasan `200 {"ok":true,"id":1}`:
@@ -113,18 +117,18 @@ Data juga bisa dicek langsung di browser:
 - `http://localhost:3000/api/device/readings?minutes=10`: data 10 menit terakhir.
 - `http://localhost:3000/api/device/export?minutes=60`: unduh CSV 60 menit terakhir.
 
-## 6. Halaman Uji Generator
+## 6. Halaman Monitor Baterai
 
-- Angka besar: tegangan terakhir (2 desimal) = keluaran turbin ke modul cas, dengan badge
-  **Turbin berputar / Turbin diam** (perkiraan dari tegangan, ambang 2 V). Status **Terhubung**
-  (hijau) selama data terus masuk; berubah menjadi **Terputus · terakhir terlihat HH:MM:SS**
-  setelah 10 detik tanpa data.
-- Tiga kartu kecil: arus (A, dengan mA di bawahnya), daya (W, dihitung server = tegangan × arus,
+- Angka besar: tegangan baterai terakhir (2 desimal). Badge **Baterai mengisi** (arus negatif),
+  **Baterai dipakai** (arus positif), atau **Tidak ada arus**. Status **Terhubung** (hijau) selama
+  data terus masuk; berubah menjadi **Terputus · terakhir terlihat HH:MM:SS** setelah 10 detik tanpa data.
+- Tiga kartu kecil: arus baterai (A, dengan mA di bawahnya), daya baterai (W = tegangan × arus,
   dengan mW di bawahnya), sinyal WiFi (dBm + kualitas Kuat/Sedang/Lemah).
-- Grafik tegangan dengan garis ambang 2 V dan pilihan 1 / 10 / 60 menit, ringkasan min, rata-rata,
-  maks, daya maks (W + mW), dan jumlah data untuk rentang yang dipilih.
-- **Unduh CSV**: file `uji-generator-YYYYMMDD-HHmm.csv` untuk rentang yang dipilih. Pemisah titik
-  koma dan koma desimal, jadi langsung terbagi rapi per kolom di Excel berbahasa Indonesia.
+- Grafik tegangan baterai dengan pilihan 1 / 10 / 60 menit, ringkasan min, rata-rata, maks,
+  daya maks (W + mW), dan jumlah data untuk rentang yang dipilih.
+- **Unduh CSV**: file `monitor-baterai-YYYYMMDD-HHmm.csv` dengan kolom
+  `tegangan_baterai_V;arus_baterai_mA;daya_baterai_mW;rssi_dBm`. Pemisah titik koma dan koma
+  desimal, jadi langsung terbagi rapi per kolom di Excel berbahasa Indonesia.
 - Halaman berhenti mengambil data saat tab tidak terlihat, dan lanjut lagi saat dibuka.
 
 ## 7. Buka dari internet dengan Cloudflare Quick Tunnel

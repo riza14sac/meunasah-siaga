@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Download, Gauge, Wifi, Zap, type LucideIcon } from "lucide-react";
+import { Activity, Battery, BatteryCharging, Download, Gauge, Wifi, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { LineChart, type ChartSeries } from "@/components/ui/LineChart";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { BUTTON, ICON_BOX } from "@/components/ui/styles";
 import { GENERATOR_ONLINE_WINDOW_MS } from "@/lib/deviceState";
-import { SPIN_THRESHOLD_V } from "@/lib/energy";
 import { formatAgo, formatClock, formatClockSeconds } from "@/lib/format";
 import { usePolling } from "@/lib/hooks";
 import type { DeviceLatestResponse, DeviceReading } from "@/lib/types";
 
 const POLL_MS = 2000;
+/** Below this the battery is neither clearly charging nor discharging (sensor noise). */
+const IDLE_CURRENT_MA = 1;
 const RANGES = [1, 10, 60] as const;
 type Range = (typeof RANGES)[number];
 
@@ -43,12 +44,12 @@ function summarize(rows: DeviceReading[]) {
     min = Math.min(min, r.gen_voltage);
     max = Math.max(max, r.gen_voltage);
     sum += r.gen_voltage;
-    powerMax = Math.max(powerMax, r.gen_power);
+    powerMax = Math.max(powerMax, Math.abs(r.gen_power));
   }
   return { min, avg: sum / rows.length, max, powerMax, count: rows.length };
 }
 
-export default function UjiGeneratorPage() {
+export default function MonitorBateraiPage() {
   const [range, setRange] = useState<Range>(10);
   const latest = usePolling<DeviceLatestResponse>("/api/device/latest", POLL_MS);
   const history = usePolling<DeviceReading[]>(`/api/device/readings?minutes=${range}`, POLL_MS);
@@ -88,19 +89,20 @@ export default function UjiGeneratorPage() {
   const ageMs =
     Date.parse(latest.data.server_time) - Date.parse(reading.ts) + Math.max(0, now - (latest.updatedAt ?? now));
   const online = ageMs < GENERATOR_ONLINE_WINDOW_MS;
-  // Inferred from voltage: a spinning turbine generates voltage, a stopped one reads ~0.
-  const spinning = reading.gen_voltage > SPIN_THRESHOLD_V;
+  // INA219 sits on the battery: positive = discharge into the load, negative = charging.
+  const currentMa = reading.gen_current * 1000;
+  const batteryState = currentMa < -IDLE_CURRENT_MA ? "charge" : currentMa > IDLE_CURRENT_MA ? "discharge" : "idle";
 
   return (
     <div className="grid gap-4 md:gap-5 lg:grid-cols-3">
       <Card className="flex flex-col gap-4 lg:col-span-2 lg:justify-between">
         <div className="flex items-start gap-3">
           <span className={`${ICON_BOX} bg-primary-soft text-primary`}>
-            <Zap size={18} strokeWidth={1.5} />
+            <BatteryCharging size={18} strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-ink md:text-[15px]">Tegangan generator</h2>
-            <p className="text-[11px] text-ink-secondary md:text-xs">Keluaran turbin ke modul cas</p>
+            <h2 className="text-sm font-semibold text-ink md:text-[15px]">Tegangan baterai</h2>
+            <p className="text-[11px] text-ink-secondary md:text-xs">Dipantau di terminal baterai (INA219)</p>
           </div>
           {online ? (
             <StatusPill tone="success">
@@ -119,8 +121,13 @@ export default function UjiGeneratorPage() {
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {online && (
-            <StatusPill tone={spinning ? "success" : "neutral"}>
-              {spinning ? "Turbin berputar" : "Turbin diam"}
+            <StatusPill tone={batteryState === "charge" ? "success" : batteryState === "discharge" ? "warning" : "neutral"}>
+              {batteryState === "charge" ? (
+                <BatteryCharging size={14} strokeWidth={1.5} />
+              ) : (
+                <Battery size={14} strokeWidth={1.5} />
+              )}
+              {batteryState === "charge" ? "Baterai mengisi" : batteryState === "discharge" ? "Baterai dipakai" : "Tidak ada arus"}
             </StatusPill>
           )}
           <p className="text-xs text-ink-secondary md:text-[13px]">
@@ -156,7 +163,7 @@ export default function UjiGeneratorPage() {
 
       <Card className="flex flex-col gap-3 lg:col-span-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[15px] font-semibold text-ink">Grafik tegangan</h2>
+          <h2 className="text-[15px] font-semibold text-ink">Grafik tegangan baterai</h2>
           <div role="group" aria-label="Rentang grafik" className="grid grid-cols-3 gap-1 rounded-md bg-surface-muted p-1">
             {RANGES.map((r) => (
               <button
@@ -177,9 +184,8 @@ export default function UjiGeneratorPage() {
           series={series}
           unit="V"
           digits={2}
-          label={`Grafik tegangan generator ${range} menit terakhir`}
+          label={`Grafik tegangan baterai ${range} menit terakhir`}
           formatTime={range === 60 ? formatClock : formatClockSeconds}
-          threshold={{ value: SPIN_THRESHOLD_V, label: "Batas turbin berputar" }}
         />
       </Card>
 
@@ -254,12 +260,12 @@ function EmptyState() {
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <span className={`${ICON_BOX} bg-surface-muted text-icon`}>
-          <Zap size={18} strokeWidth={1.5} />
+          <BatteryCharging size={18} strokeWidth={1.5} />
         </span>
         <h2 className="text-[15px] font-semibold text-ink">Belum ada data dari ESP32</h2>
       </div>
       <ul className="list-disc space-y-1 pl-5 text-[13px] leading-snug text-ink-secondary">
-        <li>Pastikan ESP32 tersambung ke WiFi yang sama dengan laptop (lihat Serial Monitor).</li>
+        <li>Pastikan INA219 terpasang di jalur baterai dan ESP32 tersambung ke WiFi yang sama (lihat Serial Monitor).</li>
         <li>Cek alamat server di sketch: harus IP laptop, misalnya http://192.168.1.10:3000/api/ingest.</li>
         <li>Cek kunci API di sketch sama dengan DEVICE_API_KEY di .env.local.</li>
       </ul>

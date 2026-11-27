@@ -3,7 +3,7 @@ import type { StatusResponse } from "./types";
 /** No data for longer than this and the dashboard shows "ESP32 terputus". */
 export const DEVICE_OFFLINE_AFTER_MS = 30_000;
 
-/** Uji Generator: the ESP32 sends every 2 s, so 10 s of silence means "Terputus". */
+/** Monitor Baterai: the ESP32 sends every 2 s, so 10 s of silence means "Terputus". */
 export const GENERATOR_ONLINE_WINDOW_MS = 10_000;
 
 export interface DeviceConnection {

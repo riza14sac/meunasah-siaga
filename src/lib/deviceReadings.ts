@@ -91,7 +91,7 @@ const decimal = (v: number, digits: number) => v.toFixed(digits).replace(".", ",
 
 /** Semicolon-separated with a UTF-8 BOM, the format Excel with Indonesian settings opens into columns. */
 export function deviceReadingsCsv(rows: DeviceReading[]): string {
-  const lines = ["waktu;tegangan_V;arus_mA;daya_mW;rssi_dBm"];
+  const lines = ["waktu;tegangan_baterai_V;arus_baterai_mA;daya_baterai_mW;rssi_dBm"];
   for (const r of rows) {
     lines.push(
       [
@@ -108,5 +108,5 @@ export function deviceReadingsCsv(rows: DeviceReading[]): string {
 }
 
 export function deviceCsvFilename(nowMs: number): string {
-  return `uji-generator-${wibDateKey(nowMs).replaceAll("-", "")}-${wibClock(nowMs).replace(":", "")}.csv`;
+  return `monitor-baterai-${wibDateKey(nowMs).replaceAll("-", "")}-${wibClock(nowMs).replace(":", "")}.csv`;
 }

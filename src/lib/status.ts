@@ -15,8 +15,8 @@ import { wibDayStart } from "./time";
 const CURRENT_MODE = "(SELECT mode FROM system_settings WHERE id = 1)";
 
 /**
- * A generator-only payload never reaches `readings`. Build a minimal Reading from
- * `device_readings` so Beranda can still show the turbine voltage instead of nothing.
+ * A compact payload never reaches `readings`. Build a minimal Reading from
+ * `device_readings` so Beranda can still show the battery voltage instead of nothing.
  * Battery/PLN fields are placeholders; `data_source` tells the UI they are unknown.
  */
 function readingFromDevice(d: { id: number; ts: string; device_id: string; gen_voltage: number; gen_current: number; rssi: number | null }, mode: Mode): Reading {

@@ -16,8 +16,8 @@ function isFullPayload(body: Record<string, unknown>): boolean {
 }
 
 /**
- * The ESP32 posts here every few seconds. A generator-only payload is stored in
- * `device_readings` for the Uji Generator page; a full payload also updates
+ * The ESP32 posts here every few seconds. A compact payload is stored in
+ * `device_readings` for the Monitor Baterai page; a full payload also updates
  * battery, blackouts and test sessions and gets the device settings back.
  */
 export const POST = route(async (request: NextRequest) => {

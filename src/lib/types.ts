@@ -146,7 +146,7 @@ export interface NextPrayer {
 
 /**
  * Which data actually fed the live status: "full" = payload lengkap (baterai/PLN),
- * "generator-only" = fallback dari `device_readings`, "none" = belum ada data.
+ * "generator-only" = payload ringkas (baterai) dari `device_readings`, "none" = belum ada data.
  */
 export type StatusDataSource = "full" | "generator-only" | "none";
 
@@ -165,7 +165,7 @@ export interface StatusResponse {
   schedule: { profile_name: string; slots: ScheduleSlot[] };
 }
 
-/** One row of `device_readings`: what the ESP32 sends for the Uji Generator page. */
+/** One row of `device_readings`: the compact battery payload from the ESP32 (Monitor Baterai page). */
 export interface DeviceReading {
   id: number;
   ts: string;
